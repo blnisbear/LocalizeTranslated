@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi Translator</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://js.puter.com/v2/"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3a;
+    --text: #e8e8ef;
+    --text-dim: #8888a0;
+    --accent: #6ee7b7;
+    --accent-dim: rgba(110,231,183,0.08);
+    --th: #ff9f43;
+    --en: #54a0ff;
+    --vi: #ff6b6b;
+    --my: #a29bfe;
+    --ai: #f368e0;
+    --radius: 14px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+  }
+  body::before {
+    content:''; position:fixed; top:-40%; left:-20%; width:80%; height:80%;
+    background: radial-gradient(ellipse, rgba(110,231,183,0.03) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  body::after {
+    content:''; position:fixed; bottom:-30%; right:-20%; width:70%; height:70%;
+    background: radial-gradient(ellipse, rgba(163,130,255,0.03) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .container {
+    position:relative; z-index:1;
+    max-width:800px; margin:0 auto; padding:36px 20px 60px;
+  }
+
+  /* Header */
+  .header { text-align:center; margin-bottom:32px; }
+  .logo { display:inline-flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .logo-icon {
+    width:42px; height:42px;
+    background: linear-gradient(135deg, var(--accent), #a29bfe);
+    border-radius:12px; display:flex; align-items:center; justify-content:center;
+    font-size:21px; box-shadow:0 4px 20px rgba(110,231,183,0.2);
+  }
+  .header h1 {
+    font-size:1.6rem; font-weight:700; letter-spacing:-0.5px;
+    background: linear-gradient(135deg, var(--accent), #a29bfe);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  }
+  .header p { color:var(--text-dim); font-size:0.84rem; margin-top:4px; }
+
+  /* Mode Switcher */
+  .mode-switcher {
+    display:flex; gap:0; margin:0 auto 24px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:4px; max-width:420px;
+  }
+  .mode-btn {
+    flex:1; padding:10px 16px; border:none; border-radius:9px;
+    font-family:'IBM Plex Sans Thai',sans-serif;
+    font-size:0.82rem; font-weight:600; cursor:pointer;
+    background:transparent; color:var(--text-dim);
+    transition:all 0.25s; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .mode-btn.active {
+    background:var(--surface2); color:var(--text);
+    box-shadow:0 2px 12px rgba(0,0,0,0.3);
+  }
+  .mode-btn.active .mode-dot { opacity:1; }
+  .mode-dot {
+    width:7px; height:7px; border-radius:50%; opacity:0.3;
+    transition:opacity 0.25s;
+  }
+  .mode-btn[data-mode="standard"] .mode-dot { background:var(--accent); }
+  .mode-btn[data-mode="ai"] .mode-dot { background:var(--ai); }
+  .mode-desc {
+    text-align:center; font-size:0.72rem; color:var(--text-dim);
+    margin-top:-16px; margin-bottom:20px;
+    min-height:18px;
+  }
+
+  /* Input */
+  .input-section {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:22px 24px;
+    margin-bottom:20px; transition:border-color 0.3s, box-shadow 0.3s;
+  }
+  .input-section:focus-within {
+    border-color:rgba(110,231,183,0.3);
+    box-shadow:0 0 30px rgba(110,231,183,0.05);
+  }
+  .input-label {
+    font-size:0.74rem; font-weight:600; color:var(--text-dim);
+    text-transform:uppercase; letter-spacing:1.2px;
+    margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
+  .badge {
+    padding:2px 8px; border-radius:6px;
+    font-size:0.66rem; font-weight:500;
+  }
+  .badge-auto { background:var(--accent-dim); color:var(--accent); }
+  .badge-detected {
+    background:rgba(255,159,67,0.1); color:var(--th);
+    display:none;
+  }
+  .badge-detected.show { display:inline-flex; }
+
+  textarea {
+    width:100%; background:transparent; border:none;
+    color:var(--text); font-family:'IBM Plex Sans Thai',sans-serif;
+    font-size:1.02rem; line-height:1.7;
+    resize:none; outline:none; min-height:90px;
+  }
+  textarea::placeholder { color:#4a4a60; }
+
+  .input-footer {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top:14px; padding-top:14px; border-top:1px solid var(--border);
+  }
+  .char-count { font-family:'JetBrains Mono',monospace; font-size:0.73rem; color:var(--text-dim); }
+  .btn-group { display:flex; gap:8px; }
+
+  .btn {
+    padding:10px 20px; border:none; border-radius:10px;
+    font-family:'IBM Plex Sans Thai',sans-serif;
+    font-size:0.84rem; font-weight:600; cursor:pointer;
+    transition:all 0.25s; display:flex; align-items:center; gap:7px;
+  }
+  .btn-translate {
+    background:linear-gradient(135deg, var(--accent), #48c9a0);
+    color:#0a0a0f; box-shadow:0 4px 20px rgba(110,231,183,0.25);
+  }
+  .btn-translate.ai-mode {
+    background:linear-gradient(135deg, var(--ai), #a855f7);
+    color:#fff; box-shadow:0 4px 20px rgba(243,104,224,0.25);
+  }
+  .btn-translate:hover { transform:translateY(-1px); }
+  .btn-translate:active { transform:translateY(0); }
+  .btn-translate:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+  .btn-export { background:var(--surface2); color:var(--text-dim); border:1px solid var(--border); }
+  .btn-export:hover { color:var(--text); border-color:#3a3a50; background:#22222f; }
+  .btn-export:disabled { opacity:0.4; cursor:not-allowed; }
+  .btn-clear { background:transparent; color:var(--text-dim); padding:10px 14px; }
+  .btn-clear:hover { color:#ff6b6b; }
+
+  /* Results */
+  .results { display:flex; flex-direction:column; gap:10px; }
+  .result-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:18px 22px;
+    opacity:0; transform:translateY(12px);
+    animation:slideUp 0.4s ease forwards;
+  }
+  .result-card:nth-child(1){animation-delay:.04s}
+  .result-card:nth-child(2){animation-delay:.10s}
+  .result-card:nth-child(3){animation-delay:.16s}
+  .result-card:nth-child(4){animation-delay:.22s}
+  @keyframes slideUp { to{opacity:1;transform:translateY(0)} }
+
+  .result-card.is-source {
+    border-color:rgba(110,231,183,0.15);
+    background:linear-gradient(135deg, rgba(110,231,183,0.03), transparent);
+  }
+
+  .result-header {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:8px;
+  }
+  .lang-tag {
+    display:flex; align-items:center; gap:8px;
+    font-size:0.76rem; font-weight:600;
+    text-transform:uppercase; letter-spacing:1px;
+  }
+  .lang-dot { width:8px; height:8px; border-radius:50%; }
+  .lang-th .lang-dot{background:var(--th);box-shadow:0 0 8px rgba(255,159,67,0.4)}
+  .lang-en .lang-dot{background:var(--en);box-shadow:0 0 8px rgba(84,160,255,0.4)}
+  .lang-vi .lang-dot{background:var(--vi);box-shadow:0 0 8px rgba(255,107,107,0.4)}
+  .lang-my .lang-dot{background:var(--my);box-shadow:0 0 8px rgba(162,155,254,0.4)}
+  .lang-th .lang-name{color:var(--th)}
+  .lang-en .lang-name{color:var(--en)}
+  .lang-vi .lang-name{color:var(--vi)}
+  .lang-my .lang-name{color:var(--my)}
+
+  .right-group { display:flex; align-items:center; gap:6px; }
+  .source-tag {
+    font-size:0.6rem; padding:1px 6px; border-radius:4px;
+    font-weight:500; opacity:0.7;
+  }
+  .source-tag.lingva { background:rgba(110,231,183,0.08); color:var(--accent); }
+  .source-tag.mymemory { background:rgba(84,160,255,0.08); color:var(--en); }
+  .source-tag.ai { background:rgba(243,104,224,0.1); color:var(--ai); }
+  .source-tag.original { background:rgba(255,159,67,0.08); color:var(--th); }
+
+  .copy-btn {
+    background:transparent; border:1px solid transparent;
+    color:var(--text-dim); font-size:0.7rem; cursor:pointer;
+    padding:3px 8px; border-radius:6px;
+    font-family:'IBM Plex Sans Thai',sans-serif;
+    transition:all 0.2s; display:flex; align-items:center; gap:4px;
+  }
+  .copy-btn:hover{color:var(--accent);border-color:var(--border);background:var(--accent-dim)}
+  .copy-btn.copied{color:var(--accent)}
+
+  .result-text {
+    font-size:1rem; line-height:1.75;
+    color:var(--text); word-break:break-word;
+  }
+  .result-card.loading .result-text {
+    display:flex; align-items:center; gap:8px;
+    color:var(--text-dim); font-size:0.88rem;
+  }
+  .spinner {
+    width:15px; height:15px;
+    border:2px solid var(--border); border-top-color:var(--accent);
+    border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0;
+  }
+  .spinner.ai-spin { border-top-color:var(--ai); }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* History */
+  .history-section{margin-top:28px;border-top:1px solid var(--border);padding-top:22px}
+  .history-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .history-title{font-size:.76rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.2px}
+  .history-count{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--text-dim);background:var(--surface2);padding:3px 10px;border-radius:6px}
+  .history-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;cursor:pointer;transition:all .2s}
+  .history-item:hover{border-color:rgba(110,231,183,.2);background:var(--surface2)}
+  .history-item .original{font-size:.86rem;color:var(--text);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .history-item .meta{font-size:.7rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace}
+
+  .error-text{color:#ff6b6b;font-size:.84rem}
+
+  @media(max-width:600px){
+    .container{padding:24px 14px 40px}
+    .input-section{padding:16px}
+    .result-card{padding:14px 16px}
+    .input-footer{flex-direction:column;gap:12px;align-items:stretch}
+    .btn-group{justify-content:stretch}
+    .btn{flex:1;justify-content:center}
+    .char-count{text-align:center}
+    .header h1{font-size:1.3rem}
+    .mode-switcher{max-width:100%}
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">🌐</div>
+      <h1>Multi Translator</h1>
+    </div>
+    <p>แปลข้อความเป็น 4 ภาษาพร้อมกัน · ตรวจจับภาษาอัตโนมัติ · Export Excel</p>
+  </div>
+
+  <!-- Mode Switcher -->
+  <div class="mode-switcher">
+    <button class="mode-btn active" data-mode="standard" onclick="setMode('standard')">
+      <span class="mode-dot"></span> Standard (Lingva)
+    </button>
+    <button class="mode-btn" data-mode="ai" onclick="setMode('ai')">
+      <span class="mode-dot"></span> ✨ AI Mode (GPT)
+    </button>
+  </div>
+  <div class="mode-desc" id="modeDesc">Lingva (Google Translate) + MyMemory fallback · ฟรี ไม่ต้อง API key</div>
+
+  <!-- Input -->
+  <div class="input-section">
+    <div class="input-label">
+      <span>ข้อความต้นฉบับ</span>
+      <span class="badge badge-auto">ตรวจจับอัตโนมัติ</span>
+      <span class="badge badge-detected" id="detectedLang"></span>
+    </div>
+    <textarea id="inputText" placeholder="พิมพ์ข้อความที่ต้องการแปลที่นี่... (กด Enter เพื่อแปล)" rows="4"></textarea>
+    <div style="margin-top:12px">
+      <input type="text" id="docType" placeholder="ชื่อประเภทเอกสาร เช่น test"
+        style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);
+        background:var(--surface2);color:var(--text);font-family:'IBM Plex Sans Thai',sans-serif;">
+    </div>
+    <div class="input-footer">
+      <span class="char-count" id="charCount">0 ตัวอักษร</span>
+      <div class="btn-group">
+        <button class="btn btn-clear" id="btnClear" title="ล้าง">✕</button>
+        <button class="btn btn-export" id="btnExport" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Excel
+        </button>
+        <button class="btn btn-translate" id="btnTranslate">
+          แปลภาษา
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results"></div>
+
+  <!-- History -->
+  <div class="history-section" id="historySection" style="display:none">
+    <div class="history-header">
+      <span class="history-title">ประวัติการแปล</span>
+      <span class="history-count" id="historyCount">0</span>
+    </div>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<script>
+// ─── Config ───
+const LANGUAGES = [
+  { code:'th', name:'ไทย', nameEn:'Thai', cssClass:'lang-th', flag:'🇹🇭' },
+  { code:'en', name:'อังกฤษ', nameEn:'English', cssClass:'lang-en', flag:'🇬🇧' },
+  { code:'vi', name:'เวียดนาม', nameEn:'Vietnamese', cssClass:'lang-vi', flag:'🇻🇳' },
+  { code:'my', name:'พม่า', nameEn:'Myanmar', cssClass:'lang-my', flag:'🇲🇲' },
+];
+
+const LINGVA = [
+  'https://lingva.ml',
+  'https://translate.plausibility.cloud',
+  'https://lingva.garuber.eu',
+  'https://translate.projectsegfau.lt',
+];
+
+const LANG_LABELS = {th:'🇹🇭 ไทย', en:'🇬🇧 English', vi:'🇻🇳 Tiếng Việt', my:'🇲🇲 Myanmar'};
+const LANG_FULL = {th:'Thai', en:'English', vi:'Vietnamese', my:'Myanmar (Burmese)'};
+
+const $=id=>document.getElementById(id);
+const inputEl=$('inputText'), charCountEl=$('charCount'), detectedEl=$('detectedLang');
+const btnTranslate=$('btnTranslate'), btnExport=$('btnExport'), btnClear=$('btnClear');
+const resultsEl=$('results'), modeDescEl=$('modeDesc');
+
+let history=[], currentResults=null, currentMode='standard';
+
+// ─── Mode ───
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  if (mode === 'standard') {
+    modeDescEl.textContent = 'Lingva (Google Translate) + MyMemory fallback · ฟรี ไม่ต้อง API key';
+    btnTranslate.classList.remove('ai-mode');
+  } else {
+    modeDescEl.textContent = '✨ AI (GPT via Puter.js) · แม่นยำกว่า เข้าใจบริบท · ฟรี ไม่จำกัด';
+    btnTranslate.classList.add('ai-mode');
+  }
+}
+
+// ─── Detect ───
+function detectLanguage(text) {
+  const s = text.trim();
+  if (/[\u0E00-\u0E7F]/.test(s)) return 'th';
+  if (/[\u1000-\u109F]/.test(s)) return 'my';
+  if (/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i.test(s)) return 'vi';
+  return 'en';
+}
+
+// ─── Lingva ───
+async function translateLingva(text, src, tgt) {
+  const enc = encodeURIComponent(text);
+  for (const base of LINGVA) {
+    try {
+      const c = new AbortController();
+      const t = setTimeout(()=>c.abort(), 6000);
+      const r = await fetch(`${base}/api/v1/${src}/${tgt}/${enc}`, {signal:c.signal});
+      clearTimeout(t);
+      if (!r.ok) continue;
+      const d = await r.json();
+      if (d.translation) return {text:d.translation, via:'Lingva'};
+    } catch(_){}
+  }
+  return null;
+}
+
+// ─── MyMemory ───
+async function translateMyMemory(text, src, tgt) {
+  try {
+    const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${src}|${tgt}`);
+    const d = await r.json();
+    if (d.responseStatus===200 && d.responseData?.translatedText) {
+      let t = d.responseData.translatedText;
+      if (t===t.toUpperCase() && t.length<200) t = t.charAt(0).toUpperCase()+t.slice(1).toLowerCase();
+      return {text:t, via:'MyMemory'};
+    }
+  } catch(_){}
+  return null;
+}
+
+// ─── AI (Puter.js) ───
+async function translateAI(text, src, tgt) {
+  try {
+    const prompt = `You are a professional translator. Translate the following text from ${LANG_FULL[src]} to ${LANG_FULL[tgt]}. Output ONLY the translated text, no explanations, no quotes, no extra text.\n\n${text}`;
+    const response = await puter.ai.chat(prompt, {model:'gpt-4o-mini'});
+    let result = '';
+    if (typeof response === 'string') {
+      result = response;
+    } else if (response?.message?.content) {
+      result = response.message.content;
+    } else if (typeof response === 'object' && response?.text) {
+      result = response.text;
+    } else {
+      result = String(response);
+    }
+    result = result.replace(/^["']|["']$/g, '').trim();
+    return {text:result, via:'AI (GPT)'};
+  } catch(e) {
+    console.error('AI translate error:', e);
+    return null;
+  }
+}
+
+// ─── Combined Standard ───
+async function translateStandard(text, src, tgt) {
+  let r = await translateLingva(text, src, tgt);
+  if (r) return r;
+  r = await translateMyMemory(text, src, tgt);
+  if (r) return r;
+  throw new Error('ไม่สามารถเชื่อมต่อ API ได้');
+}
+
+// ─── Events ───
+inputEl.addEventListener('input', () => { charCountEl.textContent = `${inputEl.value.length} ตัวอักษร`; });
+inputEl.addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doTranslate()} });
+btnTranslate.addEventListener('click', doTranslate);
+btnClear.addEventListener('click', () => {
+  inputEl.value=''; charCountEl.textContent='0 ตัวอักษร';
+  resultsEl.innerHTML=''; currentResults=null;
+  btnExport.disabled=true; detectedEl.classList.remove('show');
+  inputEl.focus();
+});
+btnExport.addEventListener('click', exportExcel);
+
+// ─── Main Translate ───
+async function doTranslate() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  btnTranslate.disabled = true;
+  btnExport.disabled = true;
+
+  const detected = detectLanguage(text);
+  detectedEl.textContent = `ตรวจพบ: ${LANG_LABELS[detected]}`;
+  detectedEl.classList.add('show');
+
+  const isAI = currentMode === 'ai';
+  const spinClass = isAI ? 'spinner ai-spin' : 'spinner';
+
+  // Build cards for ALL 4 languages
+  resultsEl.innerHTML = LANGUAGES.map(lang => {
+    const isSource = lang.code === detected;
+    return `
+      <div class="result-card ${isSource ? 'is-source' : 'loading'}" id="card-${lang.code}">
+        <div class="result-header">
+          <div class="lang-tag ${lang.cssClass}">
+            <span class="lang-dot"></span>
+            <span class="lang-name">${lang.flag} ${lang.name} · ${lang.nameEn}</span>
+          </div>
+          <div class="right-group" id="rg-${lang.code}">
+            ${isSource ? '<span class="source-tag original">ต้นฉบับ</span>' : ''}
+          </div>
+        </div>
+        <div class="result-text" id="text-${lang.code}">
+          ${isSource ? esc(text) : `<div class="${spinClass}"></div> กำลังแปล${isAI?' ด้วย AI':''}...`}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  currentResults = { original:text, detected, mode:currentMode, translations:{} };
+  // Set source text as its own "translation"
+  currentResults.translations[detected] = text;
+
+  // Add copy to source card
+  addCopyBtn(detected, text);
+
+  // Translate remaining languages
+  const targets = LANGUAGES.filter(l => l.code !== detected);
+
+  await Promise.all(targets.map(async lang => {
+    try {
+      let r;
+      if (isAI) {
+        r = await translateAI(text, detected, lang.code);
+        // fallback to standard if AI fails
+        if (!r) r = await translateStandard(text, detected, lang.code);
+      } else {
+        r = await translateStandard(text, detected, lang.code);
+      }
+      if (!r) throw new Error('ไม่สามารถแปลได้');
+
+      currentResults.translations[lang.code] = r.text;
+      const card = $(`card-${lang.code}`);
+      card.classList.remove('loading');
+      $(`text-${lang.code}`).textContent = r.text;
+
+      // Source tag
+      const tagClass = r.via.includes('AI') ? 'ai' : r.via.toLowerCase() === 'lingva' ? 'lingva' : 'mymemory';
+      const rg = $(`rg-${lang.code}`);
+      rg.innerHTML = `<span class="source-tag ${tagClass}">${r.via}</span>`;
+      addCopyBtn(lang.code, r.text);
+    } catch(err) {
+      const card = $(`card-${lang.code}`);
+      card.classList.remove('loading');
+      $(`text-${lang.code}`).innerHTML = `<span class="error-text">⚠ ${err.message}</span>`;
+    }
+  }));
+
+  if (Object.keys(currentResults.translations).length > 1) {
+    history.unshift({...currentResults, time:new Date()});
+    renderHistory();
+    btnExport.disabled = false;
+  }
+  btnTranslate.disabled = false;
+}
+
+function addCopyBtn(langCode, text) {
+  const rg = $(`rg-${langCode}`);
+  const cb = document.createElement('button');
+  cb.className = 'copy-btn';
+  cb.innerHTML = '📋 คัดลอก';
+  cb.onclick = () => {
+    navigator.clipboard.writeText(text).then(()=>{
+      cb.classList.add('copied'); cb.innerHTML='✓ แล้ว';
+      setTimeout(()=>{cb.classList.remove('copied');cb.innerHTML='📋 คัดลอก'},1500);
+    });
+  };
+  rg.appendChild(cb);
+}
+
+function renderHistory() {
+  const sec=$('historySection'), list=$('historyList'), cnt=$('historyCount');
+  if(!history.length){sec.style.display='none';return}
+  sec.style.display='block'; cnt.textContent=history.length;
+  list.innerHTML = history.slice(0,5).map((item,i) => `
+    <div class="history-item" onclick="loadHistory(${i})">
+      <div class="original">${esc(item.original)}</div>
+      <div class="meta">${new Date(item.time).toLocaleTimeString('th-TH')} · ${item.mode==='ai'?'✨ AI':'Standard'} · ${LANG_LABELS[item.detected]}</div>
+    </div>
+  `).join('');
+}
+
+function loadHistory(i) {
+  const item = history[i];
+  inputEl.value = item.original;
+  charCountEl.textContent = `${item.original.length} ตัวอักษร`;
+  if (item.mode !== currentMode) setMode(item.mode);
+  doTranslate();
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+// ─── Excel Export ───
+function exportExcel() {
+  if (!history.length) return;
+
+  const docType = document.getElementById('docType').value.trim() || 'test';
+
+  const rows = [[
+    'Name',
+    'Netural',
+    '🇹🇭 ไทย',
+    '🇬🇧 อังกฤษ',
+    '🇻🇳 เวียดนาม',
+    '🇲🇲 พม่า',
+    'Localize',
+    'Localize2',
+  ]];
+
+  history.forEach(item => {
+
+    let english = item.translations['en'] || '';
+
+    // 🔥 ลบช่องว่างทั้งหมดออก (ห้ามมีเว้นวรรค)
+    const key = english.replace(/\s+/g, '');
+
+    rows.push([
+      `${docType}.${key}`,
+      // Netural
+      english,
+      item.translations['th'] || '-',
+      english || '-',
+      item.translations['vi'] || '-',
+      item.translations['my'] || '-',
+
+      // Localize (ไม่มีเว้นวรรค)
+      `@localizer["${docType}.${key}"]`,
+
+      // Localize2
+      `localizer["${docType}.${key}"]`,
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    {wch:35},{wch:35},{wch:35},{wch:35},{wch:35},{wch:35},{wch:35},{wch:35},
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Translations');
+  XLSX.writeFile(wb, `translations_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+</script>
+</body>
+</html>
